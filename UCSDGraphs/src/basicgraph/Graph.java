@@ -111,6 +111,20 @@ public abstract class Graph {
 	 */
 	public abstract List<Integer> getInNeighbors(int v);
 	
+	// Helper method learners may implement en route to degree sequence
+	public int outdegree(int v) {
+		return getNeighbors(v).size();
+	}
+	
+	//Helper method learners may implement en route to degree sequence
+	public int indegree(int v) {
+		return getInNeighbors(v).size();
+	}
+	
+	//Helper method learners may implement en route to degree sequence
+	public int degree(int v) {
+		return outdegree(v) + indegree(v);
+	}
 	
 
 	/** 
@@ -121,8 +135,16 @@ public abstract class Graph {
 	 * @return The degree sequence of this graph.
 	 */
 	public List<Integer> degreeSequence() {
-		// XXX: Implement in part 1 of week 2
-		return null;
+		// Implement in part 1 of week 2
+		List<Integer> degreeList = new ArrayList<Integer>();
+		int degree = 0;
+		for(int i = 0; i < numVertices; i++) {
+			degree = degree(i);
+			degreeList.add(degree);
+		}
+		Collections.sort(degreeList);
+		Collections.reverse(degreeList);
+		return degreeList;
 	}
 	
 	/**
@@ -130,7 +152,7 @@ public abstract class Graph {
 	 * @param v The starting vertex
 	 * @return A list of the vertices that can be reached in exactly two hops (by 
 	 * following two edges) from vertex v.
-	 * XXX: Implement in part 2 of week 2 for each subclass of Graph
+	 * Implement in part 2 of week 2 for each subclass of Graph
 	 */
 	public abstract List<Integer> getDistance2(int v); 
 
@@ -225,6 +247,55 @@ public abstract class Graph {
 		return -1;
 	}
 	
+	//Small graph example for testing.
+	private static Graph buildTestGraph1(String type) {
+		Graph test1 = null;
+		if (type.equals("list")) {
+			test1 = new GraphAdjList();
+		}
+		else if (type.equals("matrix")) {
+			test1 = new GraphAdjMatrix();
+		}
+		else {
+			System.out.println("ERROR: unidentified type; returning null");
+			return null;
+		}
+		test1.addVertex();
+		test1.addVertex();
+		test1.addVertex();
+		test1.addVertex();
+		test1.addEdge(0, 0);
+		test1.addEdge(0, 2);
+		test1.addEdge(0, 3);
+		test1.addEdge(2, 3);
+		test1.addEdge(3, 3);
+		return test1;
+	}
+	
+	//Small graph example with multiple edges between some vertices.
+	private static Graph buildTestGraph2(String type) {
+		Graph test2 = null;
+		if (type.equals("list")) {
+			test2 = new GraphAdjList();
+		}
+		else if (type.equals("matrix")) {
+			test2 = new GraphAdjMatrix();
+		}
+		else {
+			System.out.println("ERROR: unidentified type; returning null");
+			return null;
+		}
+		test2.addVertex();
+		test2.addVertex();
+		test2.addVertex();
+		test2.addEdge(0, 1);
+		test2.addEdge(0, 1);
+		test2.addEdge(1, 0);
+		test2.addEdge(1, 2);
+		test2.addEdge(2, 2);
+		return test2;
+	}
+	
 
 	
 	/** Main method provided with some basic tests.  */
@@ -241,6 +312,7 @@ public abstract class Graph {
 		System.out.println("****");
 		System.out.println("Roads / intersections:");
 		GraphAdjList graphFromFile = new GraphAdjList();
+		GraphAdjMatrix matrixGraphFromFile = new GraphAdjMatrix();
 		GraphLoader.loadRoadMap("data/testdata/simpletest.map", graphFromFile);
 		System.out.println(graphFromFile);
 		
@@ -256,14 +328,40 @@ public abstract class Graph {
 		GraphLoader.loadRoutes("data/airports/routesUA.dat", airportGraph);
 		System.out.println(airportGraph);
 		System.out.println("Observe most degrees are small (1-30), eight are over 100.");
+		System.out.println("What are heavy-weight vertices? Check hubs of UA:");
+		System.out.println("\tORD: " + airportGraph.degreeSequence().get(airportGraph.getIndex("ORD")));
+		System.out.println("\tIAD: " + airportGraph.degreeSequence().get(airportGraph.getIndex("IAD")));
+		System.out.println("\tEWR: " + airportGraph.degreeSequence().get(airportGraph.getIndex("EWR")));
+		System.out.println("\tDEN: " + airportGraph.degreeSequence().get(airportGraph.getIndex("DEN")));
+		System.out.println("\tIAH: " + airportGraph.degreeSequence().get(airportGraph.getIndex("IAH")));
+		System.out.println("\tCLE: " + airportGraph.degreeSequence().get(airportGraph.getIndex("CLE")));
+		System.out.println("\tBOS: " + airportGraph.degreeSequence().get(airportGraph.getIndex("BOS")));
+		System.out.println("\tSAN: " + airportGraph.degreeSequence().get(airportGraph.getIndex("SAN")));
 		System.out.println("****");
 		
 		//For testing Part 2 functionality
 		// Test your distance2 code here.
 		System.out.println("Testing distance-two methods on sample graphs...");
 		System.out.println("Goal: implement method using two approaches.");
+		Graph test1List = buildTestGraph1("list");
+		System.out.println(test1List);
+		test1List.getDistance2(0);
+		test1List.getDistance2(3);
 
+		Graph test1Mat = buildTestGraph1("matrix");
+		System.out.println(test1Mat);
+		test1Mat.getDistance2(0);		
+		test1Mat.getDistance2(3);
 
+		Graph test2List = buildTestGraph2("list");
+		System.out.println(test2List);
+		test2List.getDistance2(0);
+		test2List.getDistance2(2);
+
+		Graph test2Mat = buildTestGraph2("matrix");
+		System.out.println(test2Mat);
+		test2Mat.getDistance2(0);		
+		test2Mat.getDistance2(2);
 		
 	}
 }

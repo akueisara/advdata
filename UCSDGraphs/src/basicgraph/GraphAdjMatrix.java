@@ -66,8 +66,8 @@ public class GraphAdjMatrix extends Graph {
 	 * @return List<Integer> a list of indices of vertices.  
 	 */	
 	public List<Integer> getNeighbors(int v) {
-		List<Integer> neighbors = new ArrayList<Integer>();
-		for (int i = 0; i < getNumVertices(); i ++) {
+		List<Integer> neighbors = new ArrayList<Integer>(); // list to return
+		for (int i = 0; i < getNumVertices(); i ++) { // iterate through v's row
 			for (int j=0; j< adjMatrix[v][i]; j ++) {
 				neighbors.add(i);
 			}
@@ -104,8 +104,28 @@ public class GraphAdjMatrix extends Graph {
 	 * @return List<Integer> a list of indices of vertices.  
 	 */	
 	public List<Integer> getDistance2(int v) {
-		// XXX Implement this method in week 2
-		return null;
+		// Implement this method in week 2
+		List<Integer> twoHop = new ArrayList<Integer>();
+		int[][] squaredMatrix = new int[adjMatrix.length][adjMatrix.length];
+		for (int i = 0; i < adjMatrix.length; i++) {
+			for (int j = 0; j < adjMatrix.length; j++) {
+				for (int k = 0; k < adjMatrix.length; k++) {
+					squaredMatrix[i][j] += adjMatrix[i][k] * adjMatrix[k][j];
+				}
+			}
+		}
+		for(int i = 0; i < getNumVertices(); i++) {
+			for (int j=0; j < squaredMatrix[v][i]; j++) {
+				// Instead of adding i directly, add the
+				// neighbors of i
+				if (squaredMatrix[v][i] > 0) {
+					twoHop.add(i);
+				}
+				
+			}
+		}
+		System.out.println("Distance 2 from " + v + ": " + twoHop);
+		return twoHop;
 	}
 	
 	/**

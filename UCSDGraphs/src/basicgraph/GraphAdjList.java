@@ -84,6 +84,7 @@ public class GraphAdjList extends Graph {
 			}
 		}
 		return inNeighbors;
+//		return new ArrayList<Integer>(adjListsMap.get(v)); // return a COPY of v's list
 	}
 	 
 
@@ -95,8 +96,15 @@ public class GraphAdjList extends Graph {
 	 * @return List<Integer> a list of indices of vertices.  
 	 */		
 	 public List<Integer> getDistance2(int v) {
-		 // XXX: Implement this method in week 2
-		 return null;
+		 // Implement this method in week 2
+		 List<Integer> twoHop = new ArrayList<Integer>();
+		 List<Integer> oneHop = adjListsMap.get(v);
+		 // Loop through oneHop and get the neighbors of each ...
+		 for (int w : oneHop) {
+			 twoHop.addAll(getNeighbors(w));
+		 }
+		 System.out.println("Distance 2 from " + v + ": " + twoHop);
+		 return twoHop;
 	}
 	
 	/**

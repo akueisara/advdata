@@ -1,0 +1,449 @@
+<!--
+Copyright 2015 Google Inc. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<html ng-app="graphitation">
+<head>
+  <title>OSM Graph Viewer 0.1.4</title>
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.2/angular.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.2/angular-route.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.2/angular-animate.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.2/angular-aria.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/angular_material/1.0.0-rc1/angular-material.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.8/d3.min.js"></script>
+  <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/angular_material/1.0.0-rc1/angular-material.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=RobotoDraft:300,400,500,700,400italic">
+  <style>
+    .node {
+      stroke: #fff;
+      stroke-width: 1.5px;
+      fill: blue;
+    }
+
+    .node.selected {
+      stroke: red;
+      fill: red;
+    }
+
+    .edge {
+      stroke: #999;
+      stroke-opacity: .6;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    td {
+      border: 1px dotted grey;
+      padding: 0 5px;
+    }
+  </style>
+  <script>
+    'use strict';
+
+    var Graph = function(originNode) {
+      this.nodes = [];
+      this.nodeLookup = {};
+      this.edges = [];
+
+      // In order to compact the data and help uniquely id nodes, we adjust all
+      // coordinates to be relative to an origin node (arbitrarily: the first
+      // node) on the assumption they're nearby and most digits aren't significant
+      this.originNode = originNode;
+    };
+
+    Graph.prototype.addNode = function(node) {
+      if (!this.originNode) {
+        this.originNode = node;
+      }
+      node.calcIdByOrigin(this.originNode);
+      if (!this.nodeLookup[node.id]) {
+        this.nodes.push(node);
+        this.nodeLookup[node.id] = node;
+      }
+      return this;
+    };
+
+    Graph.prototype.addEdge = function(edge) {
+      if (edge.id1 == edge.id2) {
+        // Ignore 0-length edges
+        console.warn("0-length edge", edge, this.nodeLookup[edge.id1]);
+        return;
+      }
+      this.nodeLookup[edge.id1].outDegree++;
+      this.nodeLookup[edge.id2].inDegree++;
+      this.edges.push(edge);
+      return this;
+    };
+
+    Graph.prototype.calcStats = function() {
+      var stats = { };
+
+      var maxEdges = (this.nodes.length * (this.nodes.length -1)) / 2;
+      stats.density = this.edges.length / maxEdges;
+      stats.degreeDist = [];
+      this.nodes.forEach(function(node) {
+        var cur = stats.degreeDist[node.degree()];
+        stats.degreeDist[node.degree()] = (cur || 0) + 1;
+      });
+      this.stats = stats;
+    };
+
+    Graph.prototype.subgraph = function(nodeFilterFunction) {
+      // Share the same originNode so the ids don't change
+      var subGraph = new Graph(this.originNode);
+      this.nodes.forEach(function(node) {
+        if (nodeFilterFunction(node)) {
+          subGraph.addNode(node);
+        }
+      });
+      this.edges.forEach(function(edge) {
+        if (subGraph.nodeLookup[edge.id1] &&
+            subGraph.nodeLookup[edge.id2]) {
+          // Dont' use addEdge so node degree isn't updated.
+          subGraph.edges.push(edge);
+        }
+      });
+      subGraph.calcStats();
+      return subGraph;
+    };
+
+    Graph.prototype.copy = function() {
+      var newGraph = new Graph(this.originNode);
+      newGraph.nodes = this.nodes.slice(0);
+      newGraph.edges = this.edges.slice(0);
+      newGraph.nodes.forEach(function(node) {
+        newGraph.nodeLookup[node.id] = node;
+      });
+      return newGraph;
+    }
+
+    // Returns a new graph by combining nodes until the desired size is reached.
+    Graph.prototype.compacted = function() {
+      var newGraph = this.copy();
+
+      var targetLength = newGraph.nodes.length / 4;
+      while (newGraph.nodes.length > targetLength && newGraph.edges.length > 0) {
+        // Find the shortest edge and remove it
+        var shortest = newGraph.edges.reduce(function(prev, next) {
+          return next.length < prev.length ? next : prev;
+        });
+        newGraph.collapseEdge(shortest);
+      }
+      newGraph.calcStats();
+      return newGraph;
+    };
+
+    Graph.prototype.collapseEdge = function(edge) {
+      var node1 = this.nodeLookup[edge.id1];
+      var node2 = this.nodeLookup[edge.id2];
+      var midLat = ((node1.lat * node1.mass) + (node2.lat * node2.mass))
+          / (node1.mass + node2.mass);
+      var midLng = ((node1.lng * node1.mass) + (node2.lng * node2.mass))
+          / (node1.mass + node2.mass);
+      var newNode = new Node(midLat, midLng);
+      newNode.calcIdByOrigin(this.originNode);
+      newNode.mass = node1.mass + node2.mass;
+
+      this.nodes = this.nodes.filter(function(node) {
+        return node != node1 && node != node2;
+      });
+      delete this.nodeLookup[node1.id];
+      delete this.nodeLookup[node2.id];
+      this.nodes.push(newNode);
+      this.nodeLookup[newNode.id] = newNode;
+
+      var newEdges = [];
+      this.edges.forEach(function(e) {
+        if (e == edge) {
+          return;
+        }
+        // Replace edges connected to one of the old nodes with new edges
+        // connected to the new node.  Note that this will create duplicate
+        // edges if one node was connected to both removed nodes.
+        if (e.id1 == node1.id || e.id1 == node2.id) {
+          if (!this.nodeLookup[e.id2]) {
+            return;
+          }
+          newEdges.push(new Edge(newNode, this.nodeLookup[e.id2]));
+        } else if (e.id2 == node1.id || e.id2 == node2.id) {
+          newEdges.push(new Edge(this.nodeLookup[e.id1], newNode));
+        } else {
+          newEdges.push(e);
+        }
+      }.bind(this));
+      this.edges = newEdges;
+      //console.log("Collapsed edge ", edge);
+    };
+
+    var Node = function(lat, lng) {
+      this.lat = lat;
+      this.lng = lng;
+      this.inDegree = 0;
+      this.outDegree = 0;
+      // Increased when nodes are compacted
+      this.mass = 1;
+    };
+
+    Node.prototype.degree = function() {
+      return this.inDegree + this.outDegree;
+    }
+
+    Node.prototype.calcIdByOrigin = function(originNode) {
+      this.latRel = this.compComponents(this.lat, originNode.lat);
+      this.lngRel = this.compComponents(this.lng, originNode.lng);
+      this.id = this.latRel + '.' + this.lngRel;
+    };
+
+    Node.prototype.compComponents = function(comp1, comp2) {
+      return Math.floor(100000 * (comp1 - comp2));
+    };
+
+    var Edge = function(node1, node2) {
+      this.id1 = node1.id;
+      this.id2 = node2.id;
+
+      // Precompute the edge length.
+      this.length = Math.sqrt(
+        Math.pow(node1.lngRel - node2.lngRel, 2) +
+            Math.pow(node1.latRel - node2.latRel, 2));
+    }
+
+    // Parses OSM data in the form: Lat: x, Long: y Lat: x2, Long: y2
+    // Each row is an edge. Nodes are extracted from the set of unique
+    // edge endpoints.
+    var parseOSM = function(dataStr) {
+      var graph = new Graph();
+
+      // A loose regex, but it works in a pinch
+      var regex = /^Lat: (-?[0-9\.]+), Lon: (-?[0-9\.]+) Lat: (-?[0-9\.]+), Lon: (-?[0-9\.]+)$/
+
+      dataStr.split('\n').forEach(function(line) {
+        var matches = line.match(regex);
+        if (!matches) {
+          console.error("Bad line: " + line);
+          return;
+        }
+        var node1 = new Node(matches[1], matches[2]);
+        var node2 = new Node(matches[3], matches[4]);
+        graph.addNode(node1)
+            .addNode(node2)
+            .addEdge(new Edge(node1, node2));
+      });
+      graph.calcStats();
+
+      return graph;
+    }
+
+    var IndexController = function($scope, $mdDialog, $timeout) {
+
+      var width = 800, height = 500, padding = 20;
+      var xScale = d3.scale.linear().range([padding, width - padding]);
+      var yScale = d3.scale.linear().range([height - padding, padding]);
+      var svg = d3.select("#graphContainer").append("svg")
+          .attr("width", width)
+          .attr("height", height);
+      this.graph = new Graph();
+      this.isReducing = false;
+
+      $scope.$watch('ctrl.doReduce', function() {
+        if (this.doReduce) {
+          // Do the reduction on a timeout so we can render the progress spinner
+          this.isReducing = true;
+          $timeout(function() {
+            var graph = this.graph.compacted();
+            this.isReducing = false;
+            this.render(graph);
+          }.bind(this), 100);
+        } else {
+          this.render(this.graph);
+        }
+      }.bind(this));
+
+      $scope.$watch('ctrl.subgraphDegree', function(oldVal, newVal) {
+        if (oldVal == newVal) {
+          return;
+        }
+        if (this.subgraphDegree == -1) {
+          this.render(this.graph);
+        } else {
+          this.render(this.graph.subgraph(function(node) {
+            return node.degree() == this.subgraphDegree;
+          }.bind(this)));
+        }
+      }.bind(this));
+
+      this.handleData = function(dataString) {
+        this.graph = parseOSM(dataString);
+        //this.graph = this.graph.compacted();
+        this.render(this.graph);
+      }
+
+      this.importClick = function() {
+        $mdDialog.show({
+          template: '<md-dialog flex="80">' +
+            '<md-dialog-content layout="column">' +
+            '<div class="md-caption">' +
+              'Enter (or paste) <strong>edge</strong> data' +
+              '<br />Format: Lat: ??, Lon: ?? Lat: ??, Lon: ??' +
+            '</div>' +
+            '<md-input-container>' +
+              '<label>Edges</label>' +
+              '<textarea style="overflow-y: auto" ' +
+                'md-no-autogrow ng-model="dataString" rows="20">' +
+              '</textarea>' +
+            '</md-input-container>' +
+            '<md-dialog-actions>' +
+              '<md-button ng-click="closeDialog()" class="md-primary">' +
+                'Import' +
+              '</md-button>' +
+            '</md-dialog-actions>' +
+            '</md-dialog-content></md-dialog>',
+          controller: function($scope, $mdDialog) {
+            $scope.closeDialog = function() {
+              $mdDialog.hide($scope.dataString);
+            }
+          }
+        }).then(function(dataString) {
+          this.handleData(dataString);
+        }.bind(this));
+      };
+
+      this.selectNode = function(node, el) {
+        this.selectedNode = node;
+        d3.select('.node.selected').classed('selected', false);
+        d3.select(el).classed('selected', true);
+        $scope.$apply();
+      }
+
+      this.render = function(graph) {
+        var ctrl = this;
+
+        var nodes = graph.nodes;
+        xScale.domain(d3.extent(nodes, function(d) { return d.lngRel; }))
+        yScale.domain(d3.extent(nodes, function(d) { return d.latRel; }))
+        var radiusScale = d3.scale.log()
+            .domain([1, Math.max(10, d3.max(nodes, function(d) { return d.mass; }))])
+            .range([4, 8]);
+
+        var opacityScale = d3.scale.linear()
+            .domain(d3.extent(nodes, function(d) { return d.degree(); }))
+            .range([0.3, 1.0]);
+
+        var nodeDisplay = svg.selectAll(".node")
+            .data(nodes, function(node) { return node.id; });
+        nodeDisplay.enter().append("circle")
+            .attr("class", "node")
+            .attr("r", function(d) { return radiusScale(d.mass); })
+            .on('click', function(d) { ctrl.selectNode(d, this); });
+        nodeDisplay.exit().remove();
+
+        var edgeDisplay = svg.selectAll(".edge")
+            .data(graph.edges, function(edge) { return edge.id1 + '-' + edge.id2; });
+        edgeDisplay.enter().append("line")
+            .attr("class", "edge")
+            .style("stroke-width", 1);
+        edgeDisplay.exit().remove();
+
+        nodeDisplay
+            .transition().duration(500)
+            .attr("cx", function(d) { return xScale(d.lngRel); })
+            .attr("cy", function(d) { return yScale(d.latRel); });
+            //.style("opacity", function(d) { return opacityScale(d.degree()); });
+
+        var edgeNode = function(edge, end) {
+          return graph.nodeLookup[edge['id' + end]];
+        };
+
+        edgeDisplay
+            .transition().duration(500)
+            .attr("x1", function(d) { return xScale(edgeNode(d, 1).lngRel); })
+            .attr("y1", function(d) { return yScale(edgeNode(d, 1).latRel); })
+            .attr("x2", function(d) { return xScale(edgeNode(d, 2).lngRel); })
+            .attr("y2", function(d) { return yScale(edgeNode(d, 2).latRel); });
+      }
+    }
+
+    var module = angular.module('graphitation', ['ngRoute', 'ngMaterial']);
+    module.config(function($mdThemingProvider) {
+      $mdThemingProvider.theme('default')
+        .primaryPalette('indigo')
+        .accentPalette('yellow');
+    });
+    module.controller('index-controller', IndexController);
+  </script>
+</head>
+<body ng-controller="index-controller as ctrl">
+  <md-content>
+    <md-toolbar>
+      <div class="md-toolbar-tools">
+        <div class="title">UCSD OSM Graph Viewer v0.1.4</div>
+      </div>
+    </md-toolbar>
+    <md-content class="md-padding" flex layout="row">
+      <div flex=15 layout="column">
+        <div class="md-padding">
+          <button ng-click="ctrl.importClick()">Import Data...</button>
+        </div>
+        <div class="md-caption md-padding">
+          <div ng-if="ctrl.selectedNode">
+            <h3>Node Information</h3>
+            {{ctrl.selectedNode.lat}}, {{ctrl.selectedNode.lng}}<br />
+            Degree: {{ctrl.selectedNode.degree()}}<br />
+            &nbsp;&nbsp;In: {{ctrl.selectedNode.inDegree}}<br />
+            &nbsp;&nbsp;Out: {{ctrl.selectedNode.outDegree}}<br />
+            <a target="map" href="https://www.google.com/maps/?q={{ctrl.selectedNode.lat}},{{ctrl.selectedNode.lng}}">
+              View on Google Maps
+            </a>
+          </div>
+          <h3>Graph Information</h3>
+          Nodes: {{ctrl.graph.nodes.length}}<br />
+          Edges: {{ctrl.graph.edges.length}}<br />
+          Density: {{ctrl.graph.stats.density | number:5}}
+          <h4>Degree distribution</h4>
+          <span ng-if="ctrl.subgraphDegree >= 0">
+            (<a href="" ng-click="ctrl.subgraphDegree = -1">Reset View</a>)
+          </span>
+          <table>
+            <tr ng-repeat="count in ctrl.graph.stats.degreeDist track by $index">
+              <td class="md-caption">
+                <a href="" ng-click="ctrl.subgraphDegree = $index">{{$index}}</a>
+              </td>
+              <td class="md-caption">{{count || 0}}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+      <div layout="column" flex>
+        <div class="md-whiteframe-z1" layout="column" style="height: 500px">
+          <div id="graphContainer" />
+        </div>
+      </div>
+      <div id="controls" layout="row">
+        <md-checkbox ng-model="ctrl.doReduce">
+            <md-progress-circular
+                ng-if="ctrl.isReducing"
+                md-mode="indeterminate">
+            </md-progress-circular>
+            <span ng-if="!ctrl.isReducing">Reduce Graph</span>
+        </md-checkbox>
+
+        </md-progress-circular>
+      </div>
+      </div>
+    </md-content>
+  </md-content>
+</body>
