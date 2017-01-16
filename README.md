@@ -13,3 +13,9 @@ Assignments for Advanced Data Structures in Java on Coursera
 * [roadgraph.MapNode.java](https://github.com/akueisara/advanced-data-structures/blob/master/UCSDGraphs/src/roadgraph/MapNode.java) </br>
 * [roadgraph.MapEdge.java](https://github.com/akueisara/advanced-data-structures/blob/master/UCSDGraphs/src/roadgraph/MapEdge.java) </br>
 * [roadgraph.MapTester.java](https://github.com/akueisara/advanced-data-structures/blob/master/UCSDGraphs/src/roadgraph/MapTester.java) </br>
+
+## Week 4
+### [Programming Assignment](https://github.com/akueisara/advanced-data-structures/blob/master/ThirdProgrammingAssignment.pdf): Project: Shortest Path
+* [roadgraph.MapGraph.java](https://github.com/akueisara/advanced-data-structures/blob/master/UCSDGraphs/src/roadgraph/MapGraph.java) </br>
+* [roadgraph.MapNode.java](https://github.com/akueisara/advanced-data-structures/blob/master/UCSDGraphs/src/roadgraph/MapNode.java) </br>
+* [roadgraph.MapEdge.java](https://github.com/akueisara/advanced-data-structures/blob/master/UCSDGraphs/src/roadgraph/MapEdge.java) </br>
