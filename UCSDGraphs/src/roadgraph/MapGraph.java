@@ -13,8 +13,8 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.PriorityQueue;
+import java.util.Queue;
 import java.util.Set;
-import java.util.Stack;
 import java.util.function.Consumer;
 
 import geography.GeographicPoint;
@@ -175,7 +175,7 @@ public class MapGraph {
 
 		// setup to begin BFS
 		HashMap<MapNode, MapNode> parentMap = new HashMap<MapNode, MapNode>();
-		boolean found = dfsSearch(startNode, endNode, parentMap, nodeSearched);
+		boolean found = bfsSearch(startNode, endNode, parentMap, nodeSearched);
 		
 		if (!found) {
 			System.out.println("No path found from " + start + " to " + goal);
@@ -188,14 +188,14 @@ public class MapGraph {
 		return path;
 	}
 	
-	private static boolean dfsSearch(MapNode start, MapNode goal, HashMap<MapNode, MapNode> parentMap, Consumer<GeographicPoint> nodeSearched) {
+	private static boolean bfsSearch(MapNode start, MapNode goal, HashMap<MapNode, MapNode> parentMap, Consumer<GeographicPoint> nodeSearched) {
 			HashSet<MapNode> visited = new HashSet<MapNode>();
-			Stack<MapNode> toExplore = new Stack<MapNode>();
-			toExplore.push(start);
+			Queue<MapNode> toExplore = new LinkedList<MapNode>();
+			toExplore.add(start);
 			boolean found = false;
 
-			while (!toExplore.empty()) {
-				MapNode curr = toExplore.pop();
+			while (!toExplore.isEmpty()) {
+				MapNode curr = toExplore.remove();
 				
 				// Hook for visualization.  See writeup.
 				nodeSearched.accept(curr.getLocation());
@@ -209,7 +209,7 @@ public class MapGraph {
 					if (!visited.contains(next)) {
 						visited.add(next);
 						parentMap.put(next, curr);
-						toExplore.push(next);
+						toExplore.add(next);
 					}
 				}
 			}
